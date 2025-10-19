@@ -1,0 +1,30 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+struct Boid
+{
+    float2 pos;
+    float2 vel;
+};
+
+RWStructuredBuffer<Boid> Boids;
+float _DeltaTime;
+
+[numthreads(64,1,1)]
+void CSMain(uint3 id : SV_DispatchThreadID)
+{
+    uint index = id.x;
+
+    Boid b = Boids[index];
+
+    b.pos += b.vel * _DeltaTime;
+    
+    if (b.pos.x > 5) b.pos.x = -5;
+    if (b.pos.x < -5) b.pos.x = 5;
+    if (b.pos.y > 5) b.pos.y = -5;
+    if (b.pos.y < -5) b.pos.y = 5;
+
+    Boids[index] = b;
+}
+
+
