@@ -1,19 +1,30 @@
 using UnityEngine;
+using UnityEngine.Rendering;
 
 public class TwoDTester : MonoBehaviour
 {
-    private ComputeBuffer boidBuffer;
     public ComputeShader computeShader;
-    private int kernel;
+    public Material boidMaterial;
+    //public int numBoids = 1024;
+    public int numCellsX = 32, numCellsY = 32;
+    public int maxBoidsPerCell = 32;
+    private int worldSizeX = 16, worldSizeY = 9;
+    public float neighborRadius = 1f, maxSpeed = 1f, separationDistance = .05f;
+    public float separationWeight = 1f, alignmentWeight = 1f, cohesionWeight = 1f;
+
+    private ComputeBuffer boidBuffer;
+    private ComputeBuffer cellIndexesBuffer;
+    private ComputeBuffer gridCountersBuffer;
+    private ComputeBuffer gridBuffer;
+
+    private int clearKernel, assignKernel, updateKernel;
     private int threadGroupSize = 64;
 
-    private int count = 1024;
+    public int count = 1024;
+    private int numCells;
 
-    [Header("Rendering")]
-    public Material boidMaterial;
     private Mesh boidMesh;
 
-    // Using this simple struct definition for the buffer data
     struct Boid
     {
         public Vector2 pos;
@@ -28,24 +39,65 @@ public class TwoDTester : MonoBehaviour
 
     private void InitializeBoids()
     {
+
+        clearKernel = computeShader.FindKernel("ClearGrid");
+        assignKernel = computeShader.FindKernel("AssignBoidCells");
+        updateKernel = computeShader.FindKernel("CSMain");
+
+        numCells = numCellsX * numCellsY;
+
+        boidBuffer = new ComputeBuffer(count, sizeof(float) * 4);
+        cellIndexesBuffer = new ComputeBuffer(count, sizeof(uint));
+        gridCountersBuffer = new ComputeBuffer(numCells, sizeof(uint));
+        gridBuffer = new ComputeBuffer(numCells * maxBoidsPerCell, sizeof(uint));
+
         Boid[] boids = new Boid[count];
         for (int i = 0; i < count; i++)
         {
             boids[i] = new Boid
             {
-                pos = new Vector2(Random.Range(-5f, 5f), Random.Range(-5f, 5f)),
+                pos = new Vector2(Random.Range(-1f * worldSizeX, worldSizeX), Random.Range(-1f * worldSizeY, worldSizeY)),
                 vel = Random.insideUnitCircle
             };
         }
 
-        // IMPORTANT: Stride must match the struct (4 floats * 4 bytes/float = 16 bytes)
-        int stride = sizeof(float) * 4;
-        boidBuffer = new ComputeBuffer(count, stride);
+        float cellSizeX = worldSizeX / (float)numCellsX;
+        float cellSizeY = worldSizeY / (float)numCellsY;
+
+        if (neighborRadius < cellSizeX || neighborRadius < cellSizeY)
+        {
+            Debug.LogWarning($"neighbor radius of {neighborRadius} is less than cellsizeX {cellSizeX} or cellsizeY {cellSizeY}");
+        }
+
+
         boidBuffer.SetData(boids);
 
-        // Setup Compute Shader
-        kernel = computeShader.FindKernel("CSMain");
-        computeShader.SetBuffer(kernel, "Boids", boidBuffer);
+
+        computeShader.SetInt("_NumBoids", count);
+        computeShader.SetInt("_NumCells", numCells);
+        computeShader.SetInt("_NumCellsX", numCellsX);
+        computeShader.SetInt("_NumCellsY", numCellsY);
+        computeShader.SetInt("_MaxCellBoids", maxBoidsPerCell);
+
+        computeShader.SetFloat("_CellSizeX", cellSizeX);
+        computeShader.SetFloat("_CellSizeY", cellSizeY);
+        computeShader.SetFloat("_WorldX", (float)worldSizeX);
+        computeShader.SetFloat("_WorldY", (float)worldSizeY);
+
+
+
+
+        computeShader.SetBuffer(clearKernel, "GridCounters", gridCountersBuffer);
+
+        computeShader.SetBuffer(assignKernel, "Boids", boidBuffer);
+        computeShader.SetBuffer(assignKernel, "BoidCellIndexes", cellIndexesBuffer);
+        computeShader.SetBuffer(assignKernel, "GridCounters", gridCountersBuffer);
+        computeShader.SetBuffer(assignKernel, "Grid", gridBuffer);
+
+        computeShader.SetBuffer(updateKernel, "Boids", boidBuffer);
+        computeShader.SetBuffer(updateKernel, "BoidCellIndexes", cellIndexesBuffer);
+        computeShader.SetBuffer(updateKernel, "GridCounters", gridCountersBuffer);
+        computeShader.SetBuffer(updateKernel, "Grid", gridBuffer);
     }
 
     void Update()
@@ -53,51 +105,57 @@ public class TwoDTester : MonoBehaviour
         if (computeShader != null && boidBuffer != null)
         {
             computeShader.SetFloat("_DeltaTime", Time.deltaTime);
-            int groups = Mathf.CeilToInt(count / (float)threadGroupSize);
+            computeShader.SetFloat("_NeighborRadius", neighborRadius);
+            computeShader.SetFloat("_MaxSpeed", maxSpeed);
+            computeShader.SetFloat("_CohesionWeight", cohesionWeight);
+            computeShader.SetFloat("_SeparationWeight", separationWeight);
+            computeShader.SetFloat("_AlignmentWeight", alignmentWeight);
+            computeShader.SetFloat("_SeparationDistance", separationDistance);
 
-            // Dispatch the simulation
-            computeShader.Dispatch(kernel, groups, 1, 1);
+            int clearGroups = Mathf.CeilToInt(numCells / (float)threadGroupSize);
+            int boidGroups = Mathf.CeilToInt(count / (float)threadGroupSize);
+
+            computeShader.Dispatch(clearKernel, clearGroups, 1, 1);
+            computeShader.Dispatch(assignKernel, threadGroupSize, 1, 1);
+            computeShader.Dispatch(updateKernel, threadGroupSize, 1, 1);
+
         }
     }
 
-    // FIX: Reverting to OnRenderObject, the correct injection point for Built-in Pipeline
     void OnRenderObject()
     {
-        // Safety check
         if (boidMaterial == null || boidBuffer == null || boidMesh == null || Camera.current == null)
         {
             return;
         }
 
-        // Only draw if the current camera is a Game or Scene View camera
+
         if (Camera.current.cameraType != CameraType.Game && Camera.current.cameraType != CameraType.SceneView)
         {
             return;
         }
 
-        // Pass the buffer to the material
         boidMaterial.SetBuffer("_Boids", boidBuffer);
 
-        // CRITICAL: Use massive bounds to guarantee no geometry is culled by bounds check.
-        Bounds hugeBounds = new Bounds(Vector3.zero, Vector3.one * 200000f);
+        Bounds bounds = new Bounds(Vector3.zero, Vector3.one * 20f);
 
-        // CRITICAL FIX: Explicitly set the pass
         boidMaterial.SetPass(0);
 
-        // Draw call relies on OnRenderObject timing, massive bounds, and shader settings (ZTest Always)
         Graphics.DrawMeshInstancedProcedural(
             boidMesh,
             0,
             boidMaterial,
-            hugeBounds,
+            bounds,
             count
         );
     }
 
     void OnDestroy()
     {
-        // Resource release
         if (boidBuffer != null) boidBuffer.Release();
+        if (cellIndexesBuffer != null) cellIndexesBuffer.Release();
+        if (gridCountersBuffer != null) gridCountersBuffer.Release();
+        if (gridBuffer != null) gridBuffer.Release();
     }
 
     private Mesh CreateQuad()

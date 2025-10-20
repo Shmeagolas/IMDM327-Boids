@@ -1,5 +1,7 @@
 // Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel CSMain
+#pragma kernel ClearGrid
+#pragma kernel AssignBoidCells
 
 struct Boid
 {
@@ -8,21 +10,132 @@ struct Boid
 };
 
 RWStructuredBuffer<Boid> Boids;
+RWStructuredBuffer<uint> BoidCellIndexes;
+RWStructuredBuffer<uint> GridCounters;
+RWStructuredBuffer<uint> Grid; // index of boids at cell xy * slot
+
 float _DeltaTime;
+
+float _CellSizeX;
+float _CellSizeY;
+float _NeighborRadius;
+float _SeparationDistance;
+float _SeparationWeight;
+float _AlignmentWeight;
+float _CohesionWeight;
+float _MaxSpeed; 
+float _WorldX;
+float _WorldY;
+
+uint _NumBoids;
+uint _NumCells;
+uint _NumCellsX;
+uint _NumCellsY;
+uint _MaxCellBoids;
+
+
+[numthreads(64,1,1)]
+void ClearGrid(uint3 id : SV_DispatchThreadID)
+{
+    uint index = id.x;
+    if(index < _NumCells )GridCounters[index] = 0;
+}
+
+[numthreads(64,1,1)]
+void AssignBoidCells(uint3 id : SV_DispatchThreadID)
+{
+    uint index = id.x;
+    if(index >= _NumBoids) return;
+
+    Boid b = Boids[index];
+
+    int2 cell = int2((b.pos.x + _WorldX) / _CellSizeX, (b.pos.y + _WorldY) / _CellSizeY);
+    cell = clamp(cell, int2(0,0), int2(_NumCellsX - 1, _NumCellsY -1));
+
+    uint cellIndex = cell.y * _NumCellsX + cell.x;
+    BoidCellIndexes[index] = cellIndex;
+
+    uint slot;
+    InterlockedAdd(GridCounters[cellIndex], 1, slot);
+    if(slot < _MaxCellBoids) Grid[cellIndex * _MaxCellBoids + slot] = index;
+
+}
 
 [numthreads(64,1,1)]
 void CSMain(uint3 id : SV_DispatchThreadID)
 {
     uint index = id.x;
+    if(index >= _NumBoids) return;
 
     Boid b = Boids[index];
+    uint cellIndex = BoidCellIndexes[index];
+    int2 cell = int2(cellIndex % _NumCellsX, cellIndex / _NumCellsX);
+
+    float2 cohesion = 0;
+    float2 alignment = 0;
+    float2 separation = 0;
+    int neighborCount = 0;
+
+    //for each surronding cell 
+    for(int y = -1 ; y <= 1; y++)
+    {
+        for(int x = -1 ; x <= 1; x++)
+        {
+
+            int2 targetCell = cell + int2(x,y);
+
+            if(targetCell.x < 0 || targetCell.y < 0 || uint(targetCell.x) >= _NumCellsX || uint(targetCell.y) >= _NumCellsY) continue;
+
+            uint targetIndex = (uint(targetCell.y) * _NumCellsX) + uint(targetCell.x);
+
+            uint boidCount = GridCounters[targetIndex];
+            boidCount = clamp(boidCount, 0, _MaxCellBoids);
+            
+            //for each boid found in cell
+            for (uint slot = 0; slot < boidCount; slot++)
+            {
+                uint foundBoidIndex = Grid[targetIndex * _MaxCellBoids + slot];
+                if(foundBoidIndex == index) continue;
+
+                Boid foundBoid = Boids[foundBoidIndex];
+                float2 offset = foundBoid.pos - b.pos;
+                float distance = length(offset);
+
+                if(distance < _NeighborRadius && distance > 0)
+                {
+                    cohesion += foundBoid.pos;
+                    alignment += foundBoid.vel;
+                    if(distance < _SeparationDistance) separation -= offset / distance;
+                    
+                    neighborCount++; 
+                }
+            }
+
+        }
+    }
+
+    if(neighborCount > 0)
+    {
+        cohesion = (cohesion / neighborCount - b.pos) * _CohesionWeight;
+        alignment = (alignment / neighborCount - b.vel) * _AlignmentWeight;
+        separation *= _SeparationWeight;
+    }
+
+    float2 acceleration = cohesion + alignment + separation;
+    b.vel += acceleration * _DeltaTime;
+    
+
+    if(length(b.vel) > _MaxSpeed)
+    {
+        b.vel = normalize(b.vel) * _MaxSpeed;
+    }
 
     b.pos += b.vel * _DeltaTime;
-    
-    if (b.pos.x > 5) b.pos.x = -5;
-    if (b.pos.x < -5) b.pos.x = 5;
-    if (b.pos.y > 5) b.pos.y = -5;
-    if (b.pos.y < -5) b.pos.y = 5;
+
+    if (b.pos.x > _WorldX) b.pos.x = -1 * _WorldX;
+    if (b.pos.x < -1 * _WorldX) b.pos.x = _WorldX;
+    if (b.pos.y > _WorldY) b.pos.y = -1 * _WorldY;
+    if (b.pos.y < -1 * _WorldY) b.pos.y = _WorldY;
 
     Boids[index] = b;
 }

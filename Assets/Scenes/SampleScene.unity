@@ -154,6 +154,16 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   computeShader: {fileID: 7200000, guid: 2d9598c745cca08418595d664da1c4ee, type: 3}
   boidMaterial: {fileID: 2100000, guid: 78669d5f121e7e9499c576805da441a1, type: 2}
+  numCellsX: 8
+  numCellsY: 8
+  maxBoidsPerCell: 1024
+  neighborRadius: 1
+  maxSpeed: 1
+  separationDistance: 1
+  separationWeight: 1
+  alignmentWeight: 1
+  cohesionWeight: 1
+  count: 16384
 --- !u!4 &317018569
 Transform:
   m_ObjectHideFlags: 0
@@ -318,13 +328,13 @@ Camera:
     serializedVersion: 2
     x: 0
     y: 0
-    width: 1
-    height: 1
+    width: 16
+    height: 9
   near clip plane: 0.3
   far clip plane: 1000
   field of view: 60
   orthographic: 1
-  orthographic size: 5
+  orthographic size: 9
   m_Depth: -1
   m_CullingMask:
     serializedVersion: 2

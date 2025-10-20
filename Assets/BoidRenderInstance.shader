@@ -6,15 +6,14 @@ Shader "Unlit/BoidRenderInstanced"
     }
     SubShader
     {
-        // Set queue and tags for robust drawing
+
         Tags { "RenderType"="Opaque" "DisableBatching"="True" "Queue"="Transparent" }
         
-        // Final Pass setup: Disable Depth
         Pass
         {
-            ZTest Always // Always pass the depth test (don't check depth)
-            ZWrite Off  // Don't write to the depth buffer (don't cover other objects)
-            Cull Off    // Disable culling
+            ZTest Always 
+            ZWrite Off  
+            Cull Off    
 
             CGPROGRAM
             #pragma vertex vert
@@ -28,14 +27,12 @@ Shader "Unlit/BoidRenderInstanced"
                 float2 vel;
             };
 
-            // Buffer name used in C# `boidMaterial.SetBuffer("_Boids", boidBuffer);`
             StructuredBuffer<Boid> _Boids; 
             float4 _Color;
 
             struct appdata
             {
                 float3 vertex : POSITION;
-                // No UNITY_VERTEX_INPUT_INSTANCE_ID needed for procedural
             };
 
             struct v2f
@@ -48,11 +45,8 @@ Shader "Unlit/BoidRenderInstanced"
             {
                 v2f o;
 
-                // 1. Get boid data
                 Boid b = _Boids[instanceID];
 
-                // 2. Create a 4x4 Translation Matrix for the boid's position (b.pos.x, b.pos.y, 0)
-                // This ensures the object-to-world transform is correctly applied regardless of view type.
                 float4x4 model = float4x4(
                     1, 0, 0, b.pos.x,
                     0, 1, 0, b.pos.y,
@@ -60,10 +54,8 @@ Shader "Unlit/BoidRenderInstanced"
                     0, 0, 0, 1        
                 );
 
-                // 3. Transform the quad vertex from object space to world space
                 float4 worldPos = mul(model, float4(v.vertex.xyz, 1.0));
 
-                // 4. Transform from world space to clip space (The correct function)
                 o.pos = UnityWorldToClipPos(worldPos.xyz);
 
                 o.col = _Color;
