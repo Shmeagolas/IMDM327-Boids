@@ -132,7 +132,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 317018569}
-  - component: {fileID: 317018568}
+  - component: {fileID: 317018570}
   m_Layer: 0
   m_Name: Two
   m_TagString: Untagged
@@ -140,30 +140,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &317018568
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 317018567}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 9679c11c7cfd55f4598b508a5f60f9d5, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  computeShader: {fileID: 7200000, guid: 2d9598c745cca08418595d664da1c4ee, type: 3}
-  boidMaterial: {fileID: 2100000, guid: 78669d5f121e7e9499c576805da441a1, type: 2}
-  numCellsX: 8
-  numCellsY: 8
-  maxBoidsPerCell: 1024
-  neighborRadius: 1
-  maxSpeed: 1
-  separationDistance: 1
-  separationWeight: 1
-  alignmentWeight: 1
-  cohesionWeight: 1
-  count: 16384
 --- !u!4 &317018569
 Transform:
   m_ObjectHideFlags: 0
@@ -179,6 +155,29 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &317018570
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 317018567}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 23d8d3a3cbd810f498ba881798403529, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  computeShader: {fileID: 7200000, guid: 6bf2440fa3d8ad84b90e257caf113227, type: 3}
+  boidMaterial: {fileID: 2100000, guid: 78669d5f121e7e9499c576805da441a1, type: 2}
+  count: 32768
+  boidSize: 1.5
+  neighborRadius: 4
+  minSpeed: 1
+  maxSpeed: 3
+  separationDistance: 0.05
+  separationWeight: 2
+  alignmentWeight: 10
+  cohesionWeight: 0.5
 --- !u!1 &705507993
 GameObject:
   m_ObjectHideFlags: 0

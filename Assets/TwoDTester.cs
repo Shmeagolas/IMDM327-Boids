@@ -7,7 +7,7 @@ public class TwoDTester : MonoBehaviour
     public Material boidMaterial;
     //public int numBoids = 1024;
     public int numCellsX = 32, numCellsY = 32;
-    public int maxBoidsPerCell = 32;
+    private int maxBoidsPerCell;
     private int worldSizeX = 16, worldSizeY = 9;
     public float neighborRadius = 1f, maxSpeed = 1f, separationDistance = .05f;
     public float separationWeight = 1f, alignmentWeight = 1f, cohesionWeight = 1f;
@@ -39,12 +39,15 @@ public class TwoDTester : MonoBehaviour
 
     private void InitializeBoids()
     {
+        numCells = numCellsX * numCellsY;
+        int maxBoidsPerCell = Mathf.CeilToInt((count / (float)numCells) * 1.5f / 4f + 0.001f) * 4; //nearest multiple of 4
+        maxBoidsPerCell = Mathf.Clamp(maxBoidsPerCell, 4, 4096);
 
         clearKernel = computeShader.FindKernel("ClearGrid");
         assignKernel = computeShader.FindKernel("AssignBoidCells");
         updateKernel = computeShader.FindKernel("CSMain");
 
-        numCells = numCellsX * numCellsY;
+
 
         boidBuffer = new ComputeBuffer(count, sizeof(float) * 4);
         cellIndexesBuffer = new ComputeBuffer(count, sizeof(uint));
@@ -61,8 +64,8 @@ public class TwoDTester : MonoBehaviour
             };
         }
 
-        float cellSizeX = worldSizeX / (float)numCellsX;
-        float cellSizeY = worldSizeY / (float)numCellsY;
+        float cellSizeX = worldSizeX * 2 / (float)numCellsX;
+        float cellSizeY = worldSizeY * 2/ (float)numCellsY;
 
         if (neighborRadius < cellSizeX || neighborRadius < cellSizeY)
         {
