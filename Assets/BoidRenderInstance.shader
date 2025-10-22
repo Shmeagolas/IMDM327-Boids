@@ -2,33 +2,38 @@ Shader "Unlit/BoidRenderInstanced"
 {
     Properties
     {
-        _Color("Color", Color) = (1,1,1,1)
+        _Color1("Color 1", Color) = (0, 0, 1, 1)
+        _Color2("Color 2", Color) = (1, 0, 0, 1)
     }
+
     SubShader
     {
+        Tags { "RenderType" = "Opaque" "DisableBatching" = "True" "Queue" = "Transparent" }
 
-        Tags { "RenderType"="Opaque" "DisableBatching"="True" "Queue"="Transparent" }
-        
         Pass
         {
-            ZTest Always 
-            ZWrite Off  
-            Cull Off    
+            ZTest Always
+            ZWrite Off
+            Cull Off
 
             CGPROGRAM
             #pragma vertex vert
             #pragma fragment frag
-            // NOTE: We don't use multi_compile_instancing here, as this is procedural
             #pragma target 4.5
             #include "UnityCG.cginc"
 
-            struct Boid {
+            struct Boid
+            {
                 float2 pos;
                 float2 vel;
             };
 
-            StructuredBuffer<Boid> _Boids; 
-            float4 _Color;
+            StructuredBuffer<Boid> _Boids;
+
+            float4 _Color1;
+            float4 _Color2;
+            float _MinSpeed;
+            float _MaxSpeed;
 
             struct appdata
             {
@@ -47,18 +52,30 @@ Shader "Unlit/BoidRenderInstanced"
 
                 Boid b = _Boids[instanceID];
 
+                // Compute rotation direction based on velocity
+                float angle = atan2(b.vel.y, b.vel.x);
+                float s = sin(angle);
+                float c = cos(angle);
+
                 float4x4 model = float4x4(
-                    1, 0, 0, b.pos.x,
-                    0, 1, 0, b.pos.y,
-                    0, 0, 1, 0,       
-                    0, 0, 0, 1        
+                    c, -s, 0, b.pos.x,
+                    s,  c, 0, b.pos.y,
+                    0,  0, 1, 0,
+                    0,  0, 0, 1
                 );
 
-                float4 worldPos = mul(model, float4(v.vertex.xyz, 1.0));
-
+                float4 worldPos = mul(model, float4(v.vertex, 1.0));
                 o.pos = UnityWorldToClipPos(worldPos.xyz);
 
-                o.col = _Color;
+                // Get boid speed
+                float speed = length(b.vel);
+
+                // Normalize speed between 0–1 based on min/max range
+                float t = saturate((speed - _MinSpeed) / (_MaxSpeed - _MinSpeed));
+
+                // Interpolate between colors based on normalized speed
+                o.col = lerp(_Color1, _Color2, t);
+
                 return o;
             }
 
