@@ -64,20 +64,35 @@ void CSMain(uint3 id : SV_DispatchThreadID)
             bo = Boids[i];
         }
 
+
+        // float dx = bo.pos.x - b.pos.x;
+        // float dxwrapped = bo.pos.x > 0 ? dx - _WorldX * 2.0 : dx + _WorldX * 2.0;
+
+        // float dy = bo.pos.y - b.pos.y;
+        // float dywrapped = bo.pos.y > 0 ? dy - _WorldY * 2.0 : dy + _WorldY * 2.0;
+
+        // float2 offset;
+
+        // offset.x = abs(dx) > abs(dxwrapped) ? dx : dxwrapped;
+        // offset.y = abs(dy) > abs(dywrapped) ? dy : dywrapped;
+
         float2 offset = bo.pos - b.pos;
+        if(offset.x > _WorldX) offset.x -= _WorldX * 2.0;
+        if(offset.x < -_WorldX) offset.x += _WorldX * 2.0;
+        if(offset.y > _WorldY) offset.y -= _WorldY * 2.0;
+        if(offset.y < -_WorldY) offset.y += _WorldY * 2.0;
 
-        if (offset.x >  _WorldX) offset.x -= 2.0 * _WorldX;
-        if (offset.x < -_WorldX) offset.x += 2.0 * _WorldX;
-        if (offset.y >  _WorldY) offset.y -= 2.0 * _WorldY;
-        if (offset.y < -_WorldY) offset.y += 2.0 * _WorldY;
-
+        float2 dir = normalize(offset);
         float distance = length(offset);
+
+
 
         if(distance < _NeighborRadius && distance > 0 && index != i)
         {
-            cohesion += bo.pos + offset;
+            cohesion += b.pos + offset;
             alignment += bo.vel;
-            if(distance < _SeparationDistance) separation -= offset / (distance * distance);
+    
+            if(distance < _SeparationDistance) separation -= dir / distance;
             neighborCount++; 
         }
         else if (_SuperBoidState != 0 && distance < _SuperBoidDistance && distance > 0) //super boid
@@ -85,10 +100,10 @@ void CSMain(uint3 id : SV_DispatchThreadID)
            if(_SuperBoidState == 1)
            {
                 // cohesion += (bo.pos + offset) * _SuperBoidStrengthScalar * _SuperBoidStrengthScalar * _SuperBoidStrengthScalar * _SuperBoidStrengthScalar;
-                alignment = normalize(offset) * pow( _SuperBoidStrengthScalar, 6);
+                alignment = dir * pow( _SuperBoidStrengthScalar, 6);
            }else if(distance < _SuperBoidDistance)
            {
-                separation -= (offset / (distance * distance)) * _SuperBoidStrengthScalar;
+                separation -= (dir / distance) * _SuperBoidStrengthScalar;
            }
         }
 
